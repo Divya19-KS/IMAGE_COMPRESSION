@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Compressor</title>
+    <style>
+        body {
+            background-color: navajowhite;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .image-preview {
+            display: flex;
+            margin-top: 20px;
+        }
+        .image-preview img {
+            max-width: 300px;
+            margin-right: 20px;
+        }
+        .image-info {
+            margin-top: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Compressor</h1>
+        <input type="file" id="imageInput" accept="image/*">
+        <div style="display: grid; padding-top: 20px;">
+            <input type="number" id="kbNumber" placeholder="Enter KB" min="1">  
+            <button onclick="compressImage()" style="padding: 5px;">Compress Image</button>
+        </div>
+
+        <div class="image-preview">
+            <div id="originalImageContainer">
+                <h2>Original Image &nbsp;&nbsp;&nbsp;&nbsp;</h2>
+                <img id="originalImage" alt="Original Image" class="hidden">
+                <div id="originalImageInfo" class="image-info hidden"></div>
+            </div>
+            
+
+            <div id="compressedImageContainer">
+                <h2>Compressed Image</h2>
+                <img id="compressedImage" alt="Compressed Image" class="hidden">
+                <div id="compressedImageInfo" class="image-info hidden"></div>
+                <a id="downloadLink" class="hidden">Download Compressed Image</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let originalImageFile;
+
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            originalImageFile = event.target.files[0];
+            displayOriginalImage(originalImageFile);
+        });
+
+        function displayOriginalImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const imgElement = document.getElementById('originalImage');
+                imgElement.src = event.target.result;
+                imgElement.classList.remove('hidden');
+                document.getElementById('originalImageInfo').innerHTML = `
+                    File Name: ${file.name}<br>
+                    File Size: ${(file.size / 1024).toFixed(2)} KB<br>
+                    Dimensions: <span id="originalImageDimensions"></span>
+                `;
+                document.getElementById('originalImageInfo').classList.remove('hidden');
+                
+                const tempImage = new Image();
+                tempImage.src = event.target.result;
+                tempImage.onload = function() {
+                    document.getElementById('originalImageDimensions').innerText = `${tempImage.width} x ${tempImage.height}`;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function compressImage() {
+            const kbNumber = parseInt(document.getElementById('kbNumber').value);
+            if (!originalImageFile || isNaN(kbNumber)) {
+                alert('Please select an image and enter a valid KB size.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    let width = img.width;
+                    let height = img.height;
+
+                    const maxSize = 1024; // Max width/height to maintain quality
+                    if (width > height && width > maxSize) {
+                        height *= maxSize / width;
+                        width = maxSize;
+                    } else if (height > width && height > maxSize) {
+                        width *= maxSize / height;
+                        height = maxSize;
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    let quality = 0.9;
+                    const targetSize = kbNumber * 1024;
+
+                    function adjustQuality() {
+                        canvas.toBlob(function(blob) {
+                            if (blob.size <= targetSize) {
+                                displayCompressedImage(blob);
+                            } else if (quality > 0.1) {
+                                quality -= 0.05;
+                                ctx.clearRect(0, 0, width, height);
+                                ctx.drawImage(img, 0, 0, width, height);
+                                canvas.toBlob(adjustQuality, 'image/jpeg', quality);
+                            } else {
+                                displayCompressedImage(blob);
+                            }
+                        }, 'image/jpeg', quality);
+                    }
+                    adjustQuality();
+                };
+            };
+            reader.readAsDataURL(originalImageFile);
+        }
+
+        function displayCompressedImage(blob) {
+            const imgElement = document.getElementById('compressedImage');
+            const url = URL.createObjectURL(blob);
+            imgElement.src = url;
+            imgElement.classList.remove('hidden');
+            document.getElementById('compressedImageInfo').innerHTML = `
+                File Size: ${(blob.size / 1024).toFixed(2)} KB<br>
+                Dimensions: <span id="compressedImageDimensions"></span>
+            `;
+            document.getElementById('compressedImageInfo').classList.remove('hidden');
+
+            const tempImage = new Image();
+            tempImage.src = url;
+            tempImage.onload = function() {
+                document.getElementById('compressedImageDimensions').innerText = `${tempImage.width} x ${tempImage.height}`;
+            }
+
+            const downloadLink = document.getElementById('downloadLink');
+            downloadLink.href = url;
+            downloadLink.download = 'compressed-image.jpg';
+            downloadLink.classList.remove('hidden');
+            downloadLink.innerText = 'Download Compressed Image';
+        }
+    </script>
+</body>
+</html>
